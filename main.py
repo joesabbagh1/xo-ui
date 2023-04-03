@@ -1,5 +1,6 @@
 """A tic-tac-toe game built with Python and Tkinter."""
 import socket
+import json
 import threading
 import tkinter as tk
 from itertools import cycle
@@ -46,16 +47,20 @@ class Network:
         except socket.error as e:
             print(f"Socket error occurred while connecting to {self.addr}: {e}")
 
-    def send(self, data):
+    def send(self, move):
         try:
-            self.client.send(data)
+            json_string = json.dumps(move)
+            self.client.send(json_string.encode())
             return self.client.recv(2048).decode()
         except socket.error as e:
             print(e)
 
-    def listen(self):
-        while 1:
-            print(self.client.recv(2048).decode())
+
+def listen(game, network):
+    while 1:
+        move = network.client.recv(2048).decode()
+        print(json.loads(move))
+        # game.process_move(move)
 
 
 class TicTacToeGame:
@@ -189,9 +194,7 @@ class TicTacToeBoard(tk.Tk):
         if self._game.is_valid_move(move):
             self._update_button(clicked_btn)
             self._game.process_move(move)
-            data = [row, col]
-            encoded_data = str(data).encode('utf-8')
-            response = self._network.send(encoded_data)
+            response = self._network.send(move)
             print(response)
             if self._game.is_tied():
                 self._update_display(msg="Tied game!", color="red")
@@ -218,6 +221,8 @@ class TicTacToeBoard(tk.Tk):
             if coordinates in self._game.winner_combo:
                 button.config(highlightbackground="red")
 
+    # def _update_board(self, data):
+
     def reset_board(self):
         """Reset the game's board to play again."""
         self._game.reset_game()
@@ -237,7 +242,7 @@ def main():
     t = threading.Thread(target=network.connect)
     t.start()
 
-    t2 = threading.Thread(target=network.listen)
+    t2 = threading.Thread(target=listen, args=(game, network))
     t2.start()
 
     board.mainloop()
